@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% set active = 'flows' %}
+{% block title %}Sent &middot; {{ f.name }}{% endblock %}
+{% block content %}
+<div class="crumbs"><a href="{{ url_for('flows_screen') }}">Flows</a>
+  <span class="hint">/</span> <a href="{{ url_for('flow_detail', key=f.key) }}">{{ f.name }}</a>
+  <span class="hint">/</span> Sent</div>
+
+<div class="head">
+  <div>
+    <h1>What this flow has sent</h1>
+    <div class="lede">Every message, who received it, and what they did with it.
+      Open one to see exactly what landed in their inbox.</div>
+  </div>
+</div>
+
+{% if msg %}<div class="note"><svg><use href="#i-info"/></svg><span>{{ msg }}</span></div>{% endif %}
+
+<div class="tbl-wrap">
+<table>
+  <thead><tr>
+    <th>Sent</th><th>To</th><th>Email</th><th>Subject</th>
+    <th>Opened</th><th>Clicked</th><th>What happened</th>
+  </tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td class="mono nowrap">{% if r['sent_at'] %}{{ r['sent_at'][:16].replace('T', ' ') }}
+        {%- else %}<span class="hint">not sent</span>{% endif %}</td>
+      <td class="mono">{{ r['to_email'] }}</td>
+      <td>{{ r['step'] + 1 }}</td>
+      <td>{% if r['sent_at'] %}
+          <a href="{{ url_for('flow_message', key=f.key, sid=r['id']) }}"
+             target="_blank" rel="noopener">{{ r['subject'] or '(no subject)' }}</a>
+        {%- else %}{{ r['subject'] or '(no subject)' }}{% endif %}</td>
+      <td class="mono nowrap">{% if r['opened'] %}{{ r['opened'][:16].replace('T', ' ') }}
+        {%- else %}<span class="hint">-</span>{% endif %}</td>
+      <td class="nowrap">{% if r['clicked'] %}
+          {% if 'wa.me' in (r['clicked_url'] or '') %}<span class="pill sent"><span class="d"></span>WhatsApp</span>
+          {%- else %}<span class="pill sending"><span class="d"></span>clicked</span>{% endif %}
+        {%- else %}<span class="hint">-</span>{% endif %}</td>
+      <td>{% if r['error'] %}<span class="pill paused"><span class="d"></span>{{ r['error'] }}</span>
+          {%- elif r['sent_at'] %}<span class="pill sent"><span class="d"></span>delivered</span>
+          {%- else %}<span class="pill draft"><span class="d"></span>queued</span>{% endif %}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" class="empty">
+      <svg aria-hidden="true"><use href="#i-inbox"/></svg>
+      This flow has never sent anything.<br>
+      <span class="hint">Which is expected: sending is still switched off.</span>
+    </td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<div class="note" style="margin-top:18px"><svg><use href="#i-info"/></svg>
+  <span><b>Opened is a weaker fact than clicked.</b> The open is a hidden image,
+  and a mail app that blocks images, or one that loads them all in advance,
+  makes it wrong in both directions. A click is somebody actually pressing
+  something.</span></div>
+{% endblock %}

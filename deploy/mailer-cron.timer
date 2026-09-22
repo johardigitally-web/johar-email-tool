@@ -1,0 +1,14 @@
+[Unit]
+Description=Run the mailer's own work every quarter of an hour
+
+[Timer]
+# Every 15 minutes. A reminder that waits two hours is fine; one that waits a
+# day is not, and polling harder buys nothing at a small shop's volumes.
+OnCalendar=*:0/15
+# If the machine was off, catch up once rather than pretending nothing happened.
+Persistent=true
+# So a hundred timers do not all fire on the same second.
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

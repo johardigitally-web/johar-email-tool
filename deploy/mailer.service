@@ -1,0 +1,49 @@
+[Unit]
+Description=Newsletter mailer
+After=network.target
+
+[Service]
+# Its own user, and nothing else on this machine runs as it. The database is a
+# list of real people, so who can read it is decided here rather than by luck.
+User=mailer
+Group=mailer
+WorkingDirectory=/opt/mailer
+EnvironmentFile=/etc/mailer.env
+# ProtectSystem=strict makes /opt read-only, so Python must not try to write
+# .pyc files next to the source.
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+
+# Threads rather than more processes: pressing Send holds a worker for the whole
+# batch, and the screen has to stay usable while that runs. The long timeout is
+# for the same reason - a batch of 25 with a pause between each is well past
+# gunicorn's default 30 seconds, and it would kill the worker mid-send.
+ExecStart=/opt/mailer/.venv/bin/gunicorn wsgi:app \
+    --workers 2 --threads 4 --worker-class gthread \
+    --timeout 300 --graceful-timeout 300 \
+    --bind 127.0.0.1:8010 \
+    --no-control-socket \
+    --access-logfile - --error-logfile -
+
+Restart=always
+RestartSec=3
+
+# gunicorn's runtime control socket is off. It wants to create one inside the
+# working directory, which ProtectSystem=strict makes read-only, and nothing
+# here drives gunicorn over a socket anyway.
+
+# It faces the internet and it holds a mailing list of real people.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/mailer
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

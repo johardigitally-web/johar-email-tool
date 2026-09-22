@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% set active = 'results' %}
+{% block title %}Results &middot; Email Marketing{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Results</h1>
+    <div class="lede">What the email actually did: who opened it, who clicked,
+      who messaged on WhatsApp, and who then bought. In the webshop and in the
+      showroom.</div>
+  </div>
+  <div class="actions">
+    <form method="post" action="{{ url_for('results_match') }}">
+      <button class="btn primary" type="submit">
+        <svg aria-hidden="true"><use href="#i-download"/></svg>Check for orders</button>
+    </form>
+  </div>
+</div>
+
+{% if msg %}<div class="note"><svg><use href="#i-info"/></svg><span>{{ msg }}</span></div>{% endif %}
+
+<div class="cards">
+  <div class="card kc hi"><div class="kl">Orders after an email</div>
+    <div class="kv">{{ a.orders }}</div>
+    <div class="km">within {{ a.window }} days of receiving one</div></div>
+  <div class="card kc"><div class="kl">Value</div>
+    <div class="kv">{{ '{:,.0f}'.format(a.value).replace(',', '.') }}</div>
+    <div class="km">EUR in those orders</div></div>
+  <div class="card kc"><div class="kl">Clicked first</div>
+    <div class="kv">{{ a.clicked }}</div>
+    <div class="km">the ones you can actually claim</div></div>
+  <div class="card kc"><div class="kl">WhatsApp</div>
+    <div class="kv">{{ a.whatsapp }}</div>
+    <div class="km">pressed the WhatsApp button in an email</div></div>
+</div>
+
+<div class="note" style="margin-top:16px"><svg><use href="#i-info"/></svg>
+  <span><b>Read this honestly.</b> A row here means somebody was emailed and then
+  bought, not that the email is why. <b>Clicked</b> is strong evidence.
+  <b>Opened</b> is fair. <b>Sent</b> on its own is close to none, and it is shown
+  rather than hidden so nobody quotes it as revenue. {{ a.showroom }} of these
+  came from the showroom, which no webshop tracking would have found at all.</span></div>
+
+<h3 style="margin:24px 0 10px">By campaign</h3>
+<div class="tbl-wrap" style="margin-bottom:24px">
+<table>
+  <thead><tr>
+    <th>Campaign</th><th class="num">Sent</th><th class="num">Opened</th>
+    <th class="num">Clicked</th><th class="num">Orders</th><th class="num">Value</th>
+  </tr></thead>
+  <tbody>
+  {% for c in camps %}
+    <tr>
+      <td><a href="{{ url_for('campaign', cid=c.id) }}">{{ c.name }}</a></td>
+      <td class="num mono">{{ c.n_sent }}</td>
+      <td class="num mono">{{ c.n_open }}</td>
+      <td class="num mono">{{ c.n_click }}</td>
+      <td class="num mono">{{ c.orders or '-' }}</td>
+      <td class="num mono">{% if c.value %}EUR {{ '{:,.0f}'.format(c.value).replace(',', '.') }}{% else %}-{% endif %}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="empty">
+      <svg aria-hidden="true"><use href="#i-inbox"/></svg>
+      Nothing has been sent yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<h3 style="margin:0 0 10px">Every matched order</h3>
+<div class="tbl-wrap">
+<table>
+  <thead><tr>
+    <th>Ordered</th><th>Email</th><th class="num">Value</th><th>Where</th>
+    <th>Credited to</th><th>Evidence</th>
+  </tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td class="mono nowrap">{{ r['ordered_at'][:16].replace('T', ' ') }}</td>
+      <td class="mono">{{ r['email'] }}</td>
+      <td class="num mono">EUR {{ '{:,.0f}'.format(r['total']).replace(',', '.') }}</td>
+      <td>{% if r['source'] == 'showroom' %}<span class="pill draft"><span class="d"></span>showroom</span>
+          {%- else %}<span class="pill sent"><span class="d"></span>webshop</span>{% endif %}</td>
+      <td>{% if r['flow_id'] %}Reminder {{ (r['step'] or 0) + 1 }}
+          {%- elif r['campaign_id'] %}{{ names.get(r['campaign_id'], 'Campaign %s' % r['campaign_id']) }}
+          {%- else %}<span class="hint">-</span>{% endif %}</td>
+      <td>
+        {%- if r['touch'] == 'clicked' %}<span class="pill sent"><span class="d"></span>clicked</span>
+        {%- elif r['touch'] == 'opened' %}<span class="pill sending"><span class="d"></span>opened</span>
+        {%- else %}<span class="pill draft"><span class="d"></span>only sent</span>{% endif %}
+        <span class="hint">{{ r['hours']|round|int }}h later</span>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="empty">
+      <svg aria-hidden="true"><use href="#i-inbox"/></svg>
+      No orders matched yet.<br>
+      <span class="hint">Press <i>Check for orders</i> after the first campaign
+      goes out.</span></td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<div class="note" style="margin-top:18px"><svg><use href="#i-info"/></svg>
+  <span><b>Where else this shows up.</b> Every link in every email carries
+  <code>utm_source=email</code>, so Google Analytics, Shopify's own reports and
+  Google Ads all file these visits under Email instead of Direct. That happens
+  automatically and needs nothing switching on.</span></div>
+{% endblock %}

@@ -1,0 +1,277 @@
+{% extends 'base.html' %}
+{% set active = 'subs' %}
+{% block title %}Subscribers &middot; Email Marketing{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Subscribers</h1>
+    {# One number, the one that decides everything else. The rest were on the
+       screen twice: the total is in the paginator and the breakdown is a
+       click away in the Consent column. #}
+    <div class="lede"><b>{{ stats.mailable }}</b> of {{ stats.total }} may be mailed</div>
+  </div>
+  <div class="actions">
+    <form method="post" action="{{ url_for('import_shopify') }}"
+          data-confirm-title="Import from Shopify"
+          data-confirm="Pulls every customer from the webshop and adds the ones you do not have yet. Only those marked SUBSCRIBED there get consent; the rest are stored but never mailed. Nobody is added twice and nobody who unsubscribed comes back."
+          data-confirm-ok="Import">
+      <button class="btn" type="submit"><svg aria-hidden="true"><use href="#i-download"/></svg>Shopify</button>
+    </form>
+    <form method="post" action="{{ url_for('import_crm') }}"
+          data-confirm-title="Import from the CRM"
+          data-confirm="Adds every CRM customer with an email address that you do not have yet, and refreshes what everyone has spent. Only those who ticked the newsletter box get consent. Reads the CRM only, and changes nothing in it."
+          data-confirm-ok="Import">
+      <button class="btn" type="submit"><svg aria-hidden="true"><use href="#i-download"/></svg>CRM</button>
+    </form>
+    <form method="post" action="{{ url_for('sync_crm') }}"
+          data-confirm-title="Update spend"
+          data-confirm="Looks up what each subscriber has bought from Ela and stores the totals here. Reads the CRM only, and changes nothing in it."
+          data-confirm-ok="Update">
+      <button class="btn" type="submit">Update spend</button>
+    </form>
+    {# Which columns you want to see is a per-person preference, not a setting
+       for the whole company, so it lives in this browser rather than the
+       database. Nothing here changes what anyone receives. #}
+    <div class="colmenu">
+      <button class="btn" type="button" id="colbtn" aria-expanded="false">Columns</button>
+      <div class="colpop" id="colpop" hidden>
+        <p class="hint">Show or hide columns. Drag the edge of a heading to
+          resize it. Kept in this browser only.</p>
+        {%- for key, label in [('email','Email'), ('name','Name'),
+                               ('consent','Consent'), ('source','Source'),
+                               ('signed_up','Signed up'), ('spent','Spent'),
+                               ('last_mailed','Last mailed')] %}
+        <label class="colrow"><input type="checkbox" data-toggle="{{ key }}" checked>
+          <span>{{ label }}</span></label>
+        {%- endfor %}
+        <button class="btn sm" type="button" id="colreset">Reset to default</button>
+      </div>
+    </div>
+    <a class="btn" href="{{ url_for('subscribers_export') }}">Export</a>
+  </div>
+</div>
+
+{% if audience %}
+{# Looking at one list. Said out loud, because every count and every bulk action
+   on this screen now means "within this list" and that has to be visible. #}
+<div class="note"><svg><use href="#i-users"/></svg>
+  <span>Showing <b>{{ audience_name or audience }}</b>: {{ count }} people.
+  Everything on this screen, including the filters and any bulk action, applies
+  within this list.
+  <a href="{{ url_for('subscribers') }}">Show everyone instead</a></span></div>
+{% endif %}
+
+{# The bulk bar. Hidden until something is ticked, so the normal state of this
+   page is unchanged: a row of destructive buttons sitting there permanently is
+   how people stop reading them. Only ever offers actions that REDUCE reach. #}
+<form method="post" action="{{ url_for('subscribers_bulk') }}" id="bulkform">
+  <input type="hidden" name="action" value="">
+  <input type="hidden" name="all_matching" value="">
+  {# Set only by the confirm dialog. The server refuses a bulk grant without it,
+     so consent can never be given by a stray click. #}
+  <input type="hidden" name="they_opted_in" value="">
+  {# So a bulk action taken while looking at a list means that list. #}
+  <input type="hidden" name="audience" value="{{ audience }}">
+  {%- for k, v in f.items() %}{% if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{%- endfor %}
+  <input type="hidden" name="per" value="{{ per }}">
+  <input type="hidden" name="page" value="{{ page }}">
+  <div class="bulkbar" id="bulkbar" hidden>
+    <span class="n"><b id="bulkcount">0</b> selected</span>
+    <a href="#" id="pickmatching" data-total="{{ count }}" hidden>Select all {{ count }} matching this filter</a>
+    <span id="pickedall" hidden>All <b>{{ count }}</b> matching this filter are selected.</span>
+    <span class="grow"></span>
+    <button class="btn sm" type="button" data-bulk="restore">Undo unsubscribe</button>
+    <button class="btn sm" type="button" data-bulk="grant">Mark as subscribed</button>
+    <button class="btn sm" type="button" data-bulk="revoke">Remove consent</button>
+    <button class="btn sm danger" type="button" data-bulk="unsubscribe">Unsubscribe</button>
+    <button class="btn sm" type="button" id="bulkclear">Clear</button>
+  </div>
+</form>
+
+{# The table header does three jobs: it names the column, it sorts by it, and
+   it filters on it. Filters used to live in a separate card above the table,
+   which meant looking at one place to find out why another place was showing
+   what it was showing. #}
+<form method="get" id="colfilter">
+  <input type="hidden" name="audience" value="{{ audience }}">
+  <input type="hidden" name="per" value="{{ per }}">
+  <input type="hidden" name="sort" value="{{ sort }}">
+  <input type="hidden" name="dir" value="{{ dir }}">
+</form>
+
+<div class="tbl-wrap" id="sublist">
+<table class="grid">
+  {%- macro th(key, label, cls='') -%}
+    {%- set now = (sort == key) -%}
+    {%- set nxt = 'asc' if (now and dir == 'desc') else ('desc' if now else 'desc') -%}
+    <th class="{{ cls }}{{ ' sorted' if now }}" data-col="{{ key }}">
+      <a class="sorter" href="{{ url_for('subscribers', sort=key, dir=nxt, per=per, audience=audience, **f) }}"
+         title="Sort by {{ label|lower }}">{{ label }}<span class="arrow">{{ '↑' if (now and dir == 'asc') else '↓' }}</span></a><span class="grip" title="Drag to resize"></span>
+    </th>
+  {%- endmacro -%}
+  <thead>
+    <tr class="cols">
+      <th class="pick"><input type="checkbox" id="pickall" aria-label="Select every row on this page"></th>
+      {{ th('email', 'Email') }}
+      {{ th('name', 'Name') }}
+      {{ th('consent', 'Consent') }}
+      {{ th('source', 'Source') }}
+      {{ th('signed_up', 'Signed up') }}
+      {{ th('spent', 'Spent', 'num') }}
+      {{ th('last_mailed', 'Last mailed') }}
+      <th></th>
+    </tr>
+    <tr class="filters">
+      <th class="pick"></th>
+      <th data-col="email"><input form="colfilter" type="search" name="q" value="{{ f.q }}"
+                 placeholder="Search name or email" autocomplete="off"></th>
+      <th data-col="name"></th>
+      <th data-col="consent">
+        <select form="colfilter" name="state" onchange="this.form.submit()">
+          <option value="">All</option>
+          <option value="subscribed" {% if f.state=='subscribed' %}selected{% endif %}>Subscribed</option>
+          <option value="unsubscribed" {% if f.state=='unsubscribed' %}selected{% endif %}>Unsubscribed</option>
+          <option value="never" {% if f.state=='never' %}selected{% endif %}>No consent</option>
+        </select>
+      </th>
+      <th data-col="source">
+        <select form="colfilter" name="source" onchange="this.form.submit()">
+          <option value="">All</option>
+          {%- for src in sources %}
+          <option value="{{ src }}" {% if f.source==src %}selected{% endif %}>{{ src }}</option>
+          {%- endfor %}
+        </select>
+      </th>
+      <th data-col="signed_up">
+        <select form="colfilter" name="year" onchange="this.form.submit()">
+          <option value="">Any year</option>
+          {%- for y in years %}
+          <option value="{{ y }}" {% if f.year==y %}selected{% endif %}>{{ y }}</option>
+          {%- endfor %}
+        </select>
+      </th>
+      <th data-col="spent" class="num">
+        <select form="colfilter" name="spend" onchange="this.form.submit()">
+          <option value="">Any</option>
+          <option value="yes" {% if f.spend=='yes' %}selected{% endif %}>Has bought</option>
+          <option value="no" {% if f.spend=='no' %}selected{% endif %}>Never bought</option>
+          <option value="500" {% if f.spend=='500' %}selected{% endif %}>EUR 500+</option>
+          <option value="1000" {% if f.spend=='1000' %}selected{% endif %}>EUR 1.000+</option>
+          <option value="2500" {% if f.spend=='2500' %}selected{% endif %}>EUR 2.500+</option>
+        </select>
+      </th>
+      <th data-col="last_mailed"></th>
+      <th class="clear">
+        {%- if f.q or f.state or f.source or f.spend or f.year or audience %}
+        <a class="btn sm" href="{{ url_for('subscribers', per=per, audience=audience) }}" title="Clear every filter">Clear</a>
+        {%- endif %}
+      </th>
+    </tr>
+    {%- if f.q or f.state or f.source or f.spend or f.year or audience %}
+    {# Turn what is on screen into something you can send to. Saves the FILTER,
+       not the people, so somebody who unsubscribes tomorrow leaves the list on
+       their own. #}
+    <tr class="savebar">
+      <th colspan="9">
+        <form method="post" action="{{ url_for('save_list') }}">
+          {%- for k, v in f.items() %}{% if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{%- endfor %}
+          {# The audience too. Without it the list saved a wider group than the
+             count beside this button was counting. #}
+          {%- if audience %}<input type="hidden" name="audience" value="{{ audience }}">{% endif %}
+          <span><b>{{ count }}</b> people match this filter.</span>
+          <input name="name" placeholder="Name this list, e.g. Kopers 2025"
+                 maxlength="80" aria-label="List name" required>
+          <button class="btn sm primary" type="submit">Save as list</button>
+          <span class="hint">It appears in the Audience box when you write a campaign.</span>
+        </form>
+      </th>
+    </tr>
+    {%- endif %}
+  </thead>
+  <tbody>
+  {% for s in subs %}
+    {% include '_subrow.html' %}
+  {% else %}
+    <tr><td colspan="9" class="empty">
+      <svg aria-hidden="true"><use href="#i-users"/></svg>
+      Nobody matches these filters.<br>
+      <span class="hint">Clear them, or import from Shopify or the CRM.</span>
+    </td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{# Paginator in the shape everyone already knows from Google Ads: rows per page,
+   the range you are looking at, then the steps. Three changes on top of that,
+   all because 5.778 people is 116 pages:
+
+   * the four steps are one bordered control, so they read as a control rather
+     than as four pieces of punctuation floating in whitespace;
+   * the page number is typeable. At 116 pages, "next" is not a way to reach
+     page 90;
+   * the arrow keys page the list, so a long read does not mean returning to
+     the bottom of the screen with the mouse every fifty rows.
+
+   Whitespace control (the minus signs) matters here: without it Jinja leaves
+   newlines between the buttons and they render as gaps inside the control. #}
+<nav class="pager" aria-label="Pages" data-page="{{ page }}" data-pages="{{ pages }}">
+  <form method="get" class="perpage">
+    {%- for k, v in f.items() %}{% if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{%- endfor %}
+    <label for="per">Rows per page</label>
+    <select id="per" name="per" onchange="this.form.submit()">
+      {%- for n in page_sizes %}
+      <option value="{{ n }}" {% if per == n %}selected{% endif %}>{{ n }}</option>
+      {%- endfor %}
+    </select>
+  </form>
+
+  <span class="range">
+    <b>{{ '{:,}'.format(first).replace(',', '.') }}</b> to
+    <b>{{ '{:,}'.format(last).replace(',', '.') }}</b>
+    of <b>{{ '{:,}'.format(count).replace(',', '.') }}</b>
+  </span>
+
+  <form method="get" class="jump">
+    <input type="hidden" name="audience" value="{{ audience }}">
+    <input type="hidden" name="per" value="{{ per }}">
+    {%- for k, v in f.items() %}{% if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{%- endfor %}
+    <label for="pageno">Page</label>
+    <input id="pageno" name="page" type="number" min="1" max="{{ pages }}"
+           value="{{ page }}" inputmode="numeric"
+           aria-label="Page number, press enter to jump">
+    <span>of {{ '{:,}'.format(pages).replace(',', '.') }}</span>
+  </form>
+
+  {%- macro step(target, label, icon, enabled) -%}
+    {%- if enabled -%}
+      <a class="pgbtn" aria-label="{{ label }}" title="{{ label }}"
+         href="{{ url_for('subscribers', page=target, per=per, sort=sort, dir=dir, audience=audience, **f) }}"><svg aria-hidden="true"><use href="#i-{{ icon }}"/></svg></a>
+    {%- else -%}
+      <span class="pgbtn off" aria-label="{{ label }}" aria-disabled="true"><svg aria-hidden="true"><use href="#i-{{ icon }}"/></svg></span>
+    {%- endif -%}
+  {%- endmacro -%}
+
+  <span class="pgsteps">
+    {{- step(1, 'First page', 'first', page > 1) -}}
+    {{- step(page - 1, 'Previous page', 'prev', page > 1) -}}
+    {{- step(page + 1, 'Next page', 'next', page < pages) -}}
+    {{- step(pages, 'Last page', 'last', page < pages) -}}
+  </span>
+</nav>
+
+<div class="card" style="margin-top:20px">
+  <h3>Paste or upload a list</h3>
+  <p class="hint">One address per line, or a CSV with an <code>email</code> column (and optionally <code>name</code>).</p>
+  <form method="post" action="{{ url_for('import_csv') }}" enctype="multipart/form-data">
+    <label><span class="lbl">Paste</span>
+      <textarea name="csv" rows="5" placeholder="name@example.com"></textarea></label>
+    <label><span class="lbl">Or a file</span><input type="file" name="file" accept=".csv,.txt"></label>
+    <div class="check">
+      <input type="checkbox" name="assume_consent" id="ac">
+      <span><label for="ac" style="margin:0;display:inline"><b>These people demonstrably opted in themselves.</b></label><br>
+      Leave this unticked if you are not certain. They will still be stored, but will not receive anything.</span>
+    </div>
+    <button class="btn" type="submit"><svg><use href="#i-plus"/></svg>Import</button>
+  </form>
+</div>
+{% endblock %}

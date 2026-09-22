@@ -1,0 +1,252 @@
+{% extends 'base.html' %}
+{% set active = 'flows' %}
+{% block title %}{{ f.name }} &middot; Email Marketing{% endblock %}
+{% block content %}
+<div class="crumbs"><a href="{{ url_for('flows_screen') }}">Flows</a>
+  <span class="hint">/</span> {{ f.name }}</div>
+
+<div class="head">
+  <div>
+    <h1>{{ f.name }}
+      {% if f.status == 'live' %}<span class="pill sending"><span class="d"></span>live</span>
+      {%- elif f.status == 'paused' %}<span class="pill paused"><span class="d"></span>paused</span>
+      {%- else %}<span class="pill draft"><span class="d"></span>draft</span>{% endif %}
+    </h1>
+    <div class="lede">Starts when {{ trigger.name|lower }}.
+      {% if f.trigger == 'winback' %}Quiet for {{ f.days }} days.{% endif %}
+      {% if f.trigger == 'bought' %}Starts {{ f.days }} days after the purchase.{% endif %}</div>
+  </div>
+  <div class="actions">
+    {% if f.status == 'live' %}
+    <form method="post" action="{{ url_for('flow_status', key=f.key) }}">
+      <input type="hidden" name="status" value="paused">
+      <button class="btn" type="submit"><svg aria-hidden="true"><use href="#i-stop"/></svg>Pause</button>
+    </form>
+    {% else %}
+    <form method="post" action="{{ url_for('flow_status', key=f.key) }}"
+          data-confirm-title="Set this flow live"
+          data-confirm="Live means it sends on its own when somebody triggers it. Everything still passes through the main sending switch, the allowlist and the daily cap."
+          data-confirm-ok="Set it live">
+      <input type="hidden" name="status" value="live">
+      <button class="btn primary" type="submit">Set live</button>
+    </form>
+    {% endif %}
+    <form method="post" action="{{ url_for('flows_poll', key=f.key) }}">
+      <button class="btn" type="submit"><svg aria-hidden="true"><use href="#i-download"/></svg>Check for new people</button>
+    </form>
+    <form method="post" action="{{ url_for('flows_run', key=f.key) }}"
+          data-confirm-title="Send what is due"
+          data-confirm="Sends every email whose time has come, across every live flow. Everything still passes through the sending switch, the allowlist and the daily cap."
+          data-confirm-ok="Send what is due">
+      <button class="btn" type="submit">Send what is due</button>
+    </form>
+  </div>
+</div>
+
+{% if msg %}<div class="note"><svg><use href="#i-info"/></svg><span>{{ msg }}</span></div>{% endif %}
+
+{% if f.status != 'live' %}
+<div class="note"><svg aria-hidden="true"><use href="#i-info"/></svg>
+  <span><b>This flow is {{ f.status }}.</b> Nobody enters it and nobody moves on
+  while it is. Everyone already in it keeps their place.</span></div>
+{% elif blocked %}
+<div class="note warn"><svg aria-hidden="true"><use href="#i-warn"/></svg>
+  <span><b>Live, but nothing can send.</b> {{ blocked }}</span></div>
+{% else %}
+<div class="note ok"><svg aria-hidden="true"><use href="#i-ok"/></svg>
+  <span><b>This flow is live.</b> It runs for anything triggered on or after
+  {{ cfg.FLOWS_FROM }}.</span></div>
+{% endif %}
+
+{% if no_events %}
+<div class="note warn"><svg aria-hidden="true"><use href="#i-warn"/></svg>
+  <span><b>The shop has never reported a basket.</b> This flow waits for an
+  add to cart, which Shopify's API does not expose, so one small pixel has to
+  report it: <i>Settings, Customer events, Add custom pixel</i>, paste
+  <code>shopify/ela-cart-pixel.js</code>, Save, Connect. Until then this flow
+  is live and will never fire.</span></div>
+{% endif %}
+
+<div class="cards">
+  <div class="card kc hi"><div class="kl">In the sequence</div><div class="kv">{{ s.waiting }}</div>
+    <div class="km">people waiting for the next email</div></div>
+  <div class="card kc"><div class="kl">Value waiting</div>
+    <div class="kv">{{ '{:,.0f}'.format(s.value).replace(',', '.') }}</div>
+    <div class="km">EUR in those baskets</div></div>
+  <div class="card kc"><div class="kl">Emails sent</div><div class="kv">{{ s.sent }}</div>
+    <div class="km"><a href="{{ url_for('flow_sent', key=f.key) }}">see every one</a></div></div>
+  <div class="card kc"><div class="kl">Went on to order</div><div class="kv">{{ s.recovered }}</div>
+    <div class="km">stopped because they bought</div></div>
+</div>
+
+{# The sequence as a sequence, not as a table. Click an email to read it, use
+   Edit to change what it says or how long it waits. #}
+<h3 class="sec">The sequence <span class="hint">click an email to read it</span></h3>
+
+<ol class="seq">
+  <li class="seq-node seq-trigger">
+    <div class="sn-label">Trigger</div>
+    <div>{{ trigger.name }}</div>
+    {% if trigger.hint %}<div class="hint" style="margin-top:4px">{{ trigger.hint }}</div>{% endif %}
+  </li>
+
+  {% for st in steps_rows %}
+  <li class="seq-wait">
+    <span class="dot"></span>
+    Wait {{ st.hours|round|int }} hours
+    {%- if loop.first %} after the trigger{% else %} after email {{ st.number - 1 }}{% endif %}
+  </li>
+
+  <li class="seq-node seq-mail" id="email{{ st.number }}" tabindex="0" role="button"
+      data-preview="{{ url_for('flows_preview', key=f.key, step=st.number) }}"
+      data-title="Email {{ st.number }} of {{ steps_rows|length }}"
+      data-sub="{{ st.subject }}">
+    <div class="sm-top">
+      <div>
+        <div class="sn-label">Email {{ st.number }}</div>
+        <div class="sm-subject">{{ st.subject }}</div>
+      </div>
+      <div class="sm-actions">
+        <a class="btn small" href="{{ url_for('flow_step_edit', key=f.key, pos=st.pos) }}"
+           data-stop>Edit</a>
+        <span class="btn small">Read it</span>
+      </div>
+    </div>
+    <div class="sm-stats">
+      <div class="sm-stat"><b>{{ st.sent }}</b> sent</div>
+      <div class="sm-stat"><b>{{ st.opened }}</b> opened{% if st.sent %}
+        <span class="hint">{{ (100 * st.opened / st.sent)|round|int }}%</span>{% endif %}</div>
+      <div class="sm-stat"><b>{{ st.clicked }}</b> clicked{% if st.sent %}
+        <span class="hint">{{ (100 * st.clicked / st.sent)|round|int }}%</span>{% endif %}</div>
+      <div class="sm-stat"><b>{{ money.get(st.pos, {}).get('orders') or 0 }}</b> orders
+        {%- set v = money.get(st.pos, {}).get('value') %}
+        {%- if v %} <span class="hint">EUR {{ '{:,.0f}'.format(v).replace(',', '.') }}</span>{% endif %}</div>
+      {% if st.failed %}<div class="sm-stat bad"><b>{{ st.failed }}</b> failed</div>{% endif %}
+      <div class="sm-stat waiting"><b>{{ st.waiting }}</b> waiting for this one</div>
+    </div>
+  </li>
+  {% else %}
+  <li class="seq-node"><div class="hint">No emails in this flow yet.</div></li>
+  {% endfor %}
+
+  <li class="seq-wait"><span class="dot"></span>Sequence ends</li>
+  <li class="seq-node seq-end">
+    <div class="sn-label">Stops early</div>
+    <div>The moment they order, unsubscribe or the address bounces.
+      {% if skipped_rows %}<a href="#leftout">See who</a>.{% endif %}</div>
+  </li>
+</ol>
+
+<div class="seq-add">
+  <form method="post" action="{{ url_for('flow_step_add', key=f.key) }}">
+    <button class="btn" type="submit"><svg aria-hidden="true"><use href="#i-plus"/></svg>Add an email</button>
+  </form>
+  <details class="inline-edit">
+    <summary class="btn">Rename or edit the trigger</summary>
+    <form method="post" action="{{ url_for('flow_rename', key=f.key) }}" class="card">
+      <label>Name<input name="name" value="{{ f.name }}" maxlength="80"></label>
+      {% if f.trigger in ('winback', 'bought') %}
+      <label>{% if f.trigger == 'bought' %}How many days after the purchase{% else %}Quiet for how many days{% endif %}
+        <input name="days" type="number" min="1" max="3650" value="{{ f.days }}"></label>
+      {% endif %}
+      <label>Note to yourself
+        <textarea name="note" rows="2" maxlength="400">{{ f.note }}</textarea></label>
+      <button class="btn primary" type="submit">Save</button>
+    </form>
+  </details>
+</div>
+
+{% if skipped_rows %}
+<h3 class="sec" id="leftout">Left out, and why</h3>
+<div class="tbl-wrap" style="margin-bottom:24px">
+<table>
+  <thead><tr><th>Email</th><th class="num">Basket</th><th>Reason</th><th>Started</th></tr></thead>
+  <tbody>
+  {% for r in skipped_rows %}
+    <tr>
+      <td class="mono">{{ r['email'] }}</td>
+      <td class="num mono">EUR {{ '{:,.0f}'.format(r['total']).replace(',', '.') }}</td>
+      <td>{% if r['stopped'] == 'ordered' %}<span class="pill sent"><span class="d"></span>they ordered</span>
+          {%- else %}<span class="pill paused"><span class="d"></span>{{ r['stopped'] }}</span>{% endif %}</td>
+      <td class="mono nowrap">{{ r['abandoned_at'][:16].replace('T', ' ') }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+<h3 class="sec">Everyone in this flow</h3>
+<div class="tbl-wrap">
+<table>
+  <thead><tr>
+    <th>Email</th><th class="num">Basket</th><th>Started</th>
+    <th>Next email</th><th>State</th>
+  </tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td class="mono">{{ r['email'] }}</td>
+      <td class="num mono">EUR {{ '{:,.0f}'.format(r['total']).replace(',', '.') }}</td>
+      <td class="mono nowrap">{{ r['abandoned_at'][:16].replace('T', ' ') }}</td>
+      <td>{% if r['stopped'] %}<span class="hint">-</span>
+          {%- else %}{{ r['step'] + 1 }} of {{ steps_rows|length }}{% endif %}</td>
+      <td>
+        {%- if r['stopped'] == 'ordered' %}<span class="pill sent"><span class="d"></span>ordered</span>
+        {%- elif r['stopped'] == 'finished' %}<span class="pill draft"><span class="d"></span>finished</span>
+        {%- elif r['stopped'] %}<span class="pill paused"><span class="d"></span>{{ r['stopped'] }}</span>
+        {%- else %}<span class="pill sending"><span class="d"></span>waiting</span>{% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="empty">
+      <svg aria-hidden="true"><use href="#i-inbox"/></svg>
+      Nobody is in this flow yet.<br>
+      <span class="hint">Press <i>Check for new people</i> to look.</span>
+    </td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<details class="explain">
+  <summary>How this flow works, and what stops it</summary>
+  <div class="explain-body">
+    <p><b>Nobody gets two emails.</b> Somebody can only be in one flow at a
+    time, and no email goes out within a day of any other email to the same
+    person, campaign or flow. So an abandoned cart email and a late checkout
+    reminder cannot both land.</p>
+
+    <p><b>Editing.</b> <i>Edit</i> on any email changes what it says and how
+    long it waits, and takes effect on the next run. Pausing the flow leaves
+    everybody exactly where they are.</p>
+
+    <p><b>Where the orders come from.</b> The
+    <a href="{{ url_for('results') }}">Results</a> screen matches everyone who
+    was emailed against everyone who then bought, in the webshop and in the
+    showroom, and credits the last message they received.</p>
+
+    <p><b>How this differs from a campaign.</b> A campaign goes when you press
+    send. This goes on its own, so it has its own brakes: a separate switch
+    (<code>FLOWS_ENABLED</code>), a start date it can never reach back past
+    (<code>FLOWS_FROM</code>), its own daily cap, and it stops the moment
+    somebody orders, unsubscribes or bounces.</p>
+  </div>
+</details>
+
+<div class="drawer-back" id="mv-back" hidden></div>
+<aside class="drawer" id="mv" hidden aria-label="Email preview">
+  <div class="drawer-head">
+    <div class="dh-text">
+      <b id="mv-title">Email</b>
+      <div class="hint" id="mv-sub"></div>
+    </div>
+    <div class="device" id="mv-lang">
+      <button type="button" data-lang="nl" class="on">Dutch</button>
+      <button type="button" data-lang="en">English</button>
+    </div>
+    <button type="button" class="btn small" id="mv-close">Close</button>
+  </div>
+  <iframe id="mv-frame" title="The email as it is received"></iframe>
+</aside>
+{% endblock %}

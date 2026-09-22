@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+{% set active = 'templates' %}
+{% block wrapclass %}wide{% endblock %}
+{% block title %}{{ t['name'] }} &middot; Templates{% endblock %}
+{% block content %}
+
+<div class="head">
+  <div>
+    <h1>{{ t['name'] }}</h1>
+    <div class="lede">Build the email out of blocks. Nothing here sends anything:
+      a template is only what the next campaign starts from.</div>
+  </div>
+  <div class="actions">
+    <a class="btn" href="{{ url_for('templates_screen') }}">Back</a>
+    <form method="post" action="{{ url_for('template_delete', tid=t['id']) }}"
+          data-confirm-title="Remove this template"
+          data-confirm="Campaigns already made with it keep their design, because it was copied in when they were saved. Only the starting point goes."
+          data-confirm-ok="Remove it">
+      <button class="btn" type="submit">Remove</button>
+    </form>
+  </div>
+</div>
+
+{% if msg %}<div class="note"><svg><use href="#i-info"/></svg><span>{{ msg }}</span></div>{% endif %}
+
+<div class="split">
+  <div>
+    {# The same shape as the campaign composer, down to the element ids, so the
+       same script drives the live preview on the right. One form: the block
+       buttons submit it too, with formaction, so rearranging never throws away
+       what has been typed. #}
+    <form class="card" id="composer" method="post"
+          action="{{ url_for('template_edit', tid=t['id']) }}">
+      <input type="hidden" name="layout" value="t:{{ t['id'] }}">
+      {# First submit button in the form wins the Enter key. Without this one,
+         Enter in the Name box would move a block, because the block buttons
+         come first in the markup. #}
+      <button type="submit" class="offscreen" tabindex="-1" aria-hidden="true">Save</button>
+
+      <label for="f-name"><span class="lbl">Name</span>
+        <span class="hint">For you only. It is what you will pick from when making a campaign.</span></label>
+      <input id="f-name" type="text" name="name" value="{{ t['name'] }}" maxlength="80">
+
+      <label for="f-blurb" style="margin-top:14px"><span class="lbl">One line about it</span>
+        <span class="hint">Shown under the name when you choose a starting point.</span></label>
+      <input id="f-blurb" type="text" name="blurb" value="{{ t['blurb'] }}" maxlength="200"
+             placeholder="Promotion with three products and a code">
+
+      <label for="f-subject" style="margin-top:14px"><span class="lbl">Subject</span>
+        <span class="hint">A starting point. Every campaign can change it.</span></label>
+      <input id="f-subject" type="text" name="subject" value="{{ t['subject'] }}" maxlength="200">
+
+      <label for="f-pre" style="margin-top:14px"><span class="lbl">Preheader</span>
+        <span class="hint">The grey line next to the subject in the inbox.</span></label>
+      <input id="f-pre" type="text" name="preheader" value="{{ t['preheader'] }}" maxlength="200">
+
+      {# Each block, in order, with its own boxes and its own three buttons. The
+         boxes are named exactly as the composer names them, so what is typed
+         here is what a campaign starting from this template arrives with. #}
+      <h3 class="sec" style="margin-top:22px">Blocks
+        <span class="hint">Top to bottom, the order they appear in the email.</span></h3>
+
+      {% if not blocks %}
+      <div class="note"><svg><use href="#i-info"/></svg>
+        <span>No blocks yet. Add one below and it appears in the preview at once.</span></div>
+      {% endif %}
+
+      {% set shown = [] %}
+      {% for key, b in blocks %}
+      <div class="fieldset blk" id="block{{ loop.index0 }}" style="margin-top:14px">
+        <div class="fieldset-head">
+          <span class="lbl">{{ b.label }}</span>
+          {% if b.hint %}<span class="hint">{{ b.hint }}</span>{% endif %}
+          <span class="blockbtns">
+            <button class="btn sm" type="submit" title="Move up"
+                    {% if loop.first %}disabled{% endif %}
+                    formaction="{{ url_for('template_block_move', tid=t['id'], pos=loop.index0, action='up') }}">&uarr;</button>
+            <button class="btn sm" type="submit" title="Move down"
+                    {% if loop.last %}disabled{% endif %}
+                    formaction="{{ url_for('template_block_move', tid=t['id'], pos=loop.index0, action='down') }}">&darr;</button>
+            <button class="btn sm" type="submit" title="Remove this block"
+                    formaction="{{ url_for('template_block_move', tid=t['id'], pos=loop.index0, action='remove') }}">Remove</button>
+          </span>
+        </div>
+
+        {# A box belongs to the first block that asks for it. Two blocks can
+           share one (both headers use the heading), and drawing it twice would
+           give two boxes that silently overwrite each other. #}
+        {% for fkey, label, kind, hint, default in b.fields %}
+          {% if fkey not in shown %}
+          {% set _ = shown.append(fkey) %}
+          <label for="f-{{ fkey }}" style="margin-top:14px">
+            <span class="lbl">{{ label }}</span>
+            {% if hint %}<span class="hint">{{ hint }}</span>{% endif %}
+          </label>
+          {% if kind == 'text' %}
+            <textarea id="f-{{ fkey }}" name="f_{{ fkey }}" rows="4"
+                      data-field="{{ fkey }}">{{ values.get(fkey, '') }}</textarea>
+          {% else %}
+            <input id="f-{{ fkey }}" type="text" name="f_{{ fkey }}" data-field="{{ fkey }}"
+                   value="{{ values.get(fkey, '') }}"
+                   {% if kind == 'url' %}placeholder="https://"{% endif %}>
+          {% endif %}
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% endfor %}
+
+      <div class="fieldset" style="margin-top:14px; background:var(--subtle)">
+        <div class="fieldset-head"><span class="lbl">Add a block</span>
+          <span class="hint">It goes on the bottom. Move it from there.</span></div>
+        <div class="nf-grid" style="margin-top:10px">
+          <select name="block" aria-label="Block to add">
+            {% for key, b in palette %}
+            <option value="{{ key }}">{{ b.label }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn" type="submit"
+                  formaction="{{ url_for('template_block_add', tid=t['id']) }}">
+            <svg aria-hidden="true"><use href="#i-plus"/></svg>Add it</button>
+        </div>
+      </div>
+
+      <button class="btn primary" type="submit" style="margin-top:18px">
+        <svg aria-hidden="true"><use href="#i-ok"/></svg>Save</button>
+      <p class="hint" style="margin-top:8px">Ctrl+S saves too. Moving or adding a
+        block saves what you have typed as well, so nothing is lost.</p>
+    </form>
+  </div>
+
+  <div class="preview-shell">
+    <div class="preview-bar">
+      <div class="device" role="group" aria-label="Preview width">
+        <button type="button" class="on" data-w="desktop">Desktop</button>
+        <button type="button" data-w="phone">Phone</button>
+      </div>
+      <div class="device" role="group" aria-label="Preview language" style="margin-left:8px">
+        <button type="button" class="on" data-lang="nl">Dutch</button>
+        <button type="button" data-lang="en" title="Translates the standard wording only. Anything you have edited stays in Dutch.">English</button>
+      </div>
+      <span class="hint">Subject: <b id="subjline">{{ t['subject'] or '(no subject)' }}</b></span>
+    </div>
+    <iframe id="preview" class="preview" title="Preview of the email"></iframe>
+    <p class="hint" style="margin-top:8px">Logo, footer and unsubscribe link are
+      added automatically to every email. They cannot be taken out.</p>
+  </div>
+</div>
+{% endblock %}

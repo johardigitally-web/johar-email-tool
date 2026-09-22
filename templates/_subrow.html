@@ -1,0 +1,84 @@
+{# One subscriber row.
+
+   Used by the list AND returned by the action API, so what you see after
+   clicking is rendered by exactly the same code as what you saw before. Two
+   copies of this markup would drift, and the thing that drifted would be the
+   consent state, which is the one thing on this screen that must be right. #}
+<tr data-row="{{ s['id'] }}" data-search="{{ (s['email'] ~ ' ' ~ (s['name'] or ''))|lower }}">
+  {# The checkbox lives in the shared row, so a row re-rendered by the action
+     API comes back with it. Leaving it out here would silently lose the tick
+     box from any row you touched. #}
+  <td class="pick"><input type="checkbox" class="rowpick" value="{{ s['id'] }}"
+      aria-label="Select {{ s['email'] }}"></td>
+  <td data-col="email" class="mono">{{ s['email'] }}</td>
+  <td data-col="name">{{ s['name'] or '-' }}</td>
+  <td data-col="consent">
+    {% if s['consent'] == 'subscribed' %}
+      <span class="pill sent"><span class="d"></span>subscribed</span>
+    {% elif s['consent'] == 'unsubscribed' %}
+      <span class="pill paused"><span class="d"></span>unsubscribed</span>
+      <span class="sub">{{ 'by themselves' if s['unsubscribed_by'] == 'self' else 'from this screen' }}</span>
+    {% else %}
+      <span class="pill draft"><span class="d"></span>no consent</span>
+    {% endif %}
+    {% if s['bounced'] %}<span class="pill warnpill" title="{{ s['bounce_reason'] }}">bounced</span>{% endif %}
+  </td>
+  <td data-col="source" class="hint">{{ s['source'] or '-' }}</td>
+  {# The webshop's own record of when they opted in. Falls back to the date we
+     first saw the address, marked so, because those are not the same claim and
+     showing an import date as a signup date would be a lie. #}
+  <td data-col="signed_up" class="mono nowrap">
+    {%- if s['signed_up_at'] -%}
+      {{ s['signed_up_at'][:10] }}
+    {%- else -%}
+      <span class="hint" title="We only know when we imported this address, not when they signed up">
+        {{ (s['consent_at'] or s['created'])[:10] }} ?</span>
+    {%- endif -%}
+  </td>
+  <td data-col="spent" class="mono nowrap num">
+    {%- if s['orders'] -%}
+      <b title="{{ s['orders'] }} order{{ '' if s['orders'] == 1 else 's' }} since {{ s['first_order_at'] or 'unknown' }}">EUR {{ '{:,.0f}'.format(s['spent']).replace(',', '.') }}</b>
+    {%- else -%}
+      <span class="hint">-</span>
+    {%- endif -%}
+  </td>
+  <td data-col="last_mailed" class="mono nowrap">{{ s['last_sent'][:10] if s['last_sent'] else '-' }}</td>
+  <td class="rowacts">
+    {% if s['consent'] == 'subscribed' %}
+      <button class="btn sm" data-act="revoke" data-id="{{ s['id'] }}"
+              data-title="Remove consent"
+              data-ask="{{ s['email'] }} stays on file but will not be mailed. Use this if the consent was recorded by mistake."
+              data-ok="Remove consent">Remove consent</button>
+      <button class="btn sm danger" data-act="unsubscribe" data-id="{{ s['id'] }}"
+              data-title="Unsubscribe"
+              data-ask="{{ s['email'] }} will be marked as unsubscribed. If that is a slip you can undo it afterwards."
+              data-ok="Unsubscribe">Unsubscribe</button>
+
+    {% elif s['consent'] == 'unsubscribed' %}
+      {% if s['unsubscribed_by'] == 'self' %}
+        <button class="btn sm" data-act="restore" data-id="{{ s['id'] }}" data-extra="they_asked=yes"
+                data-title="They unsubscribed themselves"
+                data-ask="{{ s['email'] }} clicked the unsubscribe link in their own email. Only put them back if they have asked you to. Confirming states that they did."
+                data-ok="They asked me to">They asked to rejoin</button>
+      {% else %}
+        <button class="btn sm" data-act="restore" data-id="{{ s['id'] }}"
+                data-title="Undo"
+                data-ask="{{ s['email'] }} was unsubscribed from this screen, not by them. Putting them back simply corrects the record."
+                data-ok="Put back on the list">Undo</button>
+      {% endif %}
+
+    {% else %}
+      <button class="btn sm" data-act="grant" data-id="{{ s['id'] }}" data-extra="they_opted_in=yes"
+              data-title="Mark as subscribed"
+              data-ask="Only do this if {{ s['email'] }} actually gave permission, at the counter, on paper, or by email. Confirming states that they did."
+              data-ok="Yes, they opted in">Mark as subscribed</button>
+    {% endif %}
+
+    {% if s['bounced'] %}
+      <button class="btn sm" data-act="unbounce" data-id="{{ s['id'] }}"
+              data-title="Clear the bounce"
+              data-ask="{{ s['email'] }} bounced: {{ s['bounce_reason'] or 'no reason recorded' }}. Clear it only if you believe the address works now. A full mailbox looks the same as a dead one."
+              data-ok="Clear bounce">Clear bounce</button>
+    {% endif %}
+  </td>
+</tr>

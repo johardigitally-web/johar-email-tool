@@ -1,0 +1,31 @@
+{# Public, and deliberately a PAGE rather than an action. Mail scanners fetch
+   every link in every message before the recipient ever sees it, and more than
+   half of this list is behind Microsoft, so a GET that unsubscribed meant
+   robots quietly removing real customers. One button, one POST. Standalone,
+   like its sibling: nothing of the tool, no navigation, no login. #}
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Afmelden</title>
+<style>
+ body{margin:0;background:#f6f6f4;font:16px/1.6 -apple-system,Segoe UI,Arial,sans-serif;color:#222}
+ .box{max-width:520px;margin:12vh auto;background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:32px 28px}
+ h1{font-size:22px;margin:0 0 12px}
+ .mail{font-family:monospace;background:#f2f2f0;padding:2px 6px;border-radius:4px}
+ button{margin-top:18px;padding:13px 26px;font:inherit;font-weight:600;color:#fff;
+        background:#44596B;border:0;border-radius:8px;cursor:pointer}
+ .small{margin-top:22px;font-size:13px;color:#777}
+</style>
+</head>
+<body><div class="box">
+  <h1>Afmelden</h1>
+  <p>Wilt u geen e-mails meer ontvangen op <span class="mail">{{ email }}</span>?</p>
+  <form method="post" action="{{ url_for('unsubscribe', token=token) }}">
+    <button type="submit">Ja, afmelden</button>
+  </form>
+  <p class="small">U kunt zich later altijd opnieuw aanmelden via onze website.</p>
+</div></body>
+</html>

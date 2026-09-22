@@ -1,0 +1,307 @@
+{% extends 'base.html' %}
+{% set active = 'campaigns' %}
+{% block wrapclass %}wide{% endblock %}
+{% block title %}{{ camp['name'] if camp else 'New campaign' }} &middot; Email Marketing{% endblock %}
+{% block content %}
+
+{# ---------------------------------------------------------------------------
+   No campaign yet and no starting point chosen: offer the layouts first. A
+   blank textarea asking for HTML is where this tool used to lose people.
+--------------------------------------------------------------------------- #}
+{% if not camp and not layout %}
+<div class="head">
+  <div>
+    <h1>New campaign</h1>
+    <div class="lede">Pick a layout. You fill in the words, it handles the design.</div>
+  </div>
+  <div class="actions"><a class="btn" href="{{ url_for('index') }}">Back</a></div>
+</div>
+
+<div class="starters">
+  {% for s in layout_choices %}
+  <a class="starter" href="{{ url_for('campaign_new', start=s.key, audience=picked) }}">
+    <div class="starter-art" aria-hidden="true">
+      <span class="l w60"></span><span class="l w90"></span><span class="l w75"></span>
+      {% if s.key != 'plain' %}<span class="l img"></span>{% endif %}
+      {% if s.key in ('arrivals','sale','showroom') %}<span class="l btn-ish"></span>{% endif %}
+    </div>
+    <b>{{ s.name }}</b>
+    <span class="hint">{{ s.blurb }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+
+<div class="head">
+  <div>
+    <h1>{{ camp['name'] if camp else 'New campaign' }}</h1>
+    <div class="lede">
+      {%- if camp %}
+        <span class="pill {{ camp['status'] }}"><span class="d"></span>{{ camp['status'] }}</span>
+        {% if camp['started'] %}&nbsp; started {{ camp['started'][:16].replace('T',' ') }}{% endif %}
+      {%- else %}Write on the left, watch it on the right.{% endif %}
+    </div>
+  </div>
+  <div class="actions">
+    <a class="btn" href="{{ url_for('index') }}">Back</a>
+    {% if camp %}
+      <a class="btn" href="{{ url_for('campaign_preview', cid=camp['id']) }}" target="_blank"
+         rel="noopener"><svg aria-hidden="true"><use href="#i-eye"/></svg>Open preview</a>
+      <form method="post" action="{{ url_for('campaign_duplicate', cid=camp['id']) }}">
+        <button class="btn" type="submit"><svg aria-hidden="true"><use href="#i-copy"/></svg>Duplicate</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if camp %}
+{# The three steps, always visible, always in order. Replaces a row of buttons
+   whose order you had to already know. #}
+<ol class="steps" aria-label="Steps to send">
+  <li class="{{ 'done' if camp['subject'] and camp['body'] else 'now' }}">
+    <span class="n">1</span><b>Write it</b>
+    <span class="hint">{% if camp['subject'] and camp['body'] %}Subject and message are filled in.{% else %}Needs a subject and a message.{% endif %}</span>
+  </li>
+  <li class="{{ 'now' if camp['subject'] and camp['body'] else '' }}">
+    <span class="n">2</span><b>Test it on yourself</b>
+    <span class="hint">Catches a broken link before 248 people see it.</span>
+  </li>
+  <li class="{{ 'done' if counts.sent else '' }}">
+    <span class="n">3</span><b>Send it</b>
+    <span class="hint">{% if counts.sent %}{{ counts.sent }} sent.{% else %}Goes to everyone in the audience.{% endif %}</span>
+  </li>
+</ol>
+{% endif %}
+
+{% if camp and blocked %}
+<div class="note warn"><svg aria-hidden="true"><use href="#i-warn"/></svg>
+  <span>{{ REASONS.get(blocked, blocked) }}
+  <a href="{{ url_for('setup') }}">Open setup</a></span></div>
+{% endif %}
+
+<div class="split">
+  <div>
+    <form class="card" id="composer" method="post"
+          action="{{ url_for('campaign', cid=camp['id']) if camp else url_for('campaign_new') }}">
+      <label for="f-name"><span class="lbl">Name</span>
+        <span class="hint">For you only. The recipient never sees this.</span></label>
+      <input id="f-name" type="text" name="name"
+             value="{{ camp['name'] if camp else (layout.name if layout else '') }}"
+             placeholder="September newsletter" {% if camp and not editable %}disabled{% endif %}>
+
+      <label for="f-subject" style="margin-top:14px"><span class="lbl">Subject</span></label>
+      <input id="f-subject" type="text" name="subject"
+             value="{{ camp['subject'] if camp else (layout.subject if layout else '') }}"
+             placeholder="New collection has arrived" {% if camp and not editable %}disabled{% endif %}>
+
+      <label for="f-pre" style="margin-top:14px"><span class="lbl">Preheader</span>
+        <span class="hint">The grey line next to the subject in the inbox.</span></label>
+      <input id="f-pre" type="text" name="preheader"
+             value="{{ camp['preheader'] if camp else (layout.preheader if layout else '') }}"
+             {% if camp and not editable %}disabled{% endif %}>
+
+      {% if not camp and picked %}
+      <div class="note" style="margin:14px 0 0"><svg><use href="#i-users"/></svg>
+        <span>This campaign is aimed at
+        <b>{{ audiences | selectattr('0', 'equalto', picked) | map(attribute='1') | first }}</b>,
+        chosen on the Lists screen. Change it below if that is not right.</span></div>
+      {% endif %}
+
+      <label for="f-aud" style="margin-top:14px">
+        <span class="lbl">Audience: <b id="reach">{{ reach if camp else '' }}</b> people</span></label>
+      <select id="f-aud" name="audience" {% if camp and not editable %}disabled{% endif %}>
+        {% for key, label in audiences %}
+        <option value="{{ key }}" {% if (camp and camp['audience'] == key) or (not camp and picked == key) %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+
+      {% if layout %}
+      {# One labelled box per part of the email. No markup anywhere near the
+         owner: the layout owns the design, these own the words. An empty box
+         removes its part rather than leaving a gap. #}
+      <div class="fieldset" style="margin-top:18px">
+        <div class="fieldset-head">
+          <span class="lbl">Message</span>
+          <span class="hint">Layout: <b>{{ layout.name }}</b>. Write in Dutch, the
+            recipients are customers. Ctrl+S saves.</span>
+        </div>
+        <input type="hidden" name="layout" value="{{ layout.key }}">
+        {% if products_stale %}
+        {# The price is baked into the saved email, so without this the campaign
+           would quietly send yesterday's price. #}
+        <div class="note warn" style="margin:12px 0 0"><svg aria-hidden="true"><use href="#i-warn"/></svg>
+          <span>A price on the webshop has changed since this was last saved.
+            Press Save to update the email.</span></div>
+        {% endif %}
+        {% for key, label, kind, hint, default in layout.fields %}
+          <label for="f-{{ key }}" style="margin-top:14px">
+            <span class="lbl">{{ label }}</span>
+            {% if hint %}<span class="hint">{{ hint }}</span>{% endif %}
+            {# What the webshop said about a pasted product link. A link that
+               could not be read just produces no row in the preview, which
+               leaves you hunting for why. #}
+            {% if products.get(key) %}
+              <span class="resolved {{ 'bad' if not products[key].ok }}">{{ products[key].text }}</span>
+            {% endif %}
+          </label>
+          {% if kind == 'text' %}
+            <textarea id="f-{{ key }}" name="f_{{ key }}" rows="4" data-field="{{ key }}"
+              {% if camp and not editable %}disabled{% endif %}
+              >{{ values.get(key, '') }}</textarea>
+          {% else %}
+            <input id="f-{{ key }}" type="text" name="f_{{ key }}" data-field="{{ key }}"
+                   value="{{ values.get(key, '') }}"
+                   {% if kind == 'url' %}placeholder="https://"{% endif %}
+                   {% if camp and not editable %}disabled{% endif %}>
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% else %}
+      {# Written before layouts existed. Left as it was: rewriting a finished
+         email into a shape it was never authored in changes what it says. #}
+      <label for="f-body" style="margin-top:14px"><span class="lbl">Message</span>
+        <span class="hint">This campaign was written before layouts existed, so it
+          is still edited as HTML. New campaigns use labelled boxes instead.</span></label>
+
+      {% if not camp or editable %}
+      <div class="toolbar" role="toolbar" aria-label="Insert into the message">
+        {% for key, label in [('heading','Heading'),('paragraph','Text'),('link','Link'),
+                              ('image','Image'),('button','Button'),('divider','Divider'),
+                              ('small','Small print')] %}
+        <button type="button" class="btn sm" data-insert="{{ key }}"
+                title="Insert {{ label|lower }}">{{ label }}</button>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <textarea id="f-body" name="body" rows="16" {% if camp and not editable %}disabled{% endif %}
+        >{{ camp['body'] if camp else '' }}</textarea>
+
+      {% for key, html in snippets.items() %}
+        <script type="text/plain" data-snippet="{{ key }}">{{ html }}</script>
+      {% endfor %}
+      {% endif %}
+
+      {% if not camp or editable %}
+        <button class="btn primary" type="submit" style="margin-top:14px">
+          <svg aria-hidden="true"><use href="#i-ok"/></svg>Save</button>
+      {% else %}
+        <p class="hint">A campaign that is sending can no longer be edited.</p>
+      {% endif %}
+    </form>
+  </div>
+
+  <div class="preview-shell">
+    <div class="preview-bar">
+      <div class="device" role="group" aria-label="Preview width">
+        <button type="button" class="on" data-w="desktop">Desktop</button>
+        <button type="button" data-w="phone">Phone</button>
+      </div>
+      {# A reading aid, not a sending mode. Customers always get the Dutch. #}
+      <div class="device" role="group" aria-label="Preview language" style="margin-left:8px">
+        <button type="button" class="on" data-lang="nl">Dutch</button>
+        <button type="button" data-lang="en" title="Translates the standard wording only. Anything you have edited stays in Dutch.">English</button>
+      </div>
+      {# Same expression as the Subject box itself, so the two cannot disagree
+         before the script has run. #}
+      <span class="hint">Subject: <b id="subjline">{{ (camp['subject'] if camp else (layout.subject if layout else '')) or '(no subject)' }}</b></span>
+    </div>
+    <iframe id="preview" class="preview" title="Preview of the email"></iframe>
+    <p class="hint" style="margin-top:8px">Footer and unsubscribe link are added automatically. Both are required.</p>
+  </div>
+</div>
+
+{% if camp %}
+<div class="cards" style="margin-top:22px">
+  <div class="card kc"><div class="kl">Queued</div><div class="kv">{{ counts.total }}</div></div>
+  <div class="card kc hi"><div class="kl">Sent</div><div class="kv">{{ counts.sent }}</div></div>
+  <div class="card kc"><div class="kl">Opened</div><div class="kv">{{ counts.opened }}</div>
+    <div class="km">{% if counts.sent %}{{ (100 * counts.opened / counts.sent)|round|int }}% of sent{% else %}nothing yet{% endif %}</div></div>
+  <div class="card kc"><div class="kl">Clicked</div><div class="kv">{{ counts.clicked }}</div>
+    <div class="km">{% if counts.sent %}{{ (100 * counts.clicked / counts.sent)|round|int }}%{% endif %}</div></div>
+</div>
+
+<div class="card" id="sendbox" data-campaign="{{ camp['id'] }}"
+     data-total="{{ counts.total }}" data-reach="{{ reach }}">
+  <h2>Send</h2>
+
+  <div class="sendstep">
+    <div>
+      <b>Test on yourself first</b>
+      <p class="hint">Nothing is added to your list and nothing is counted.</p>
+    </div>
+    <form method="post" action="{{ url_for('campaign_test', cid=camp['id']) }}" class="row">
+      <label for="f-test" class="visually-hidden">Test address</label>
+      <input id="f-test" type="email" name="to" style="max-width:280px"
+             placeholder="your own address"
+             value="{{ locked_to[0] if locked_to else '' }}" required>
+      <button class="btn" type="submit"><svg aria-hidden="true"><use href="#i-send"/></svg>Send test</button>
+    </form>
+  </div>
+
+  <div class="sep"></div>
+
+  <div class="sendstep">
+    <div>
+      <b>Send to {{ reach }} people</b>
+      <p class="hint">Runs the whole list in blocks of {{ cfg.BATCH_SIZE }}, and remembers where it is.</p>
+    </div>
+    <div class="row">
+      {% if not blocked %}
+        <button class="btn primary" id="start-send" type="button">
+          <svg aria-hidden="true"><use href="#i-send"/></svg>Send campaign</button>
+        <button class="btn" id="stop-send" type="button" hidden>
+          <svg aria-hidden="true"><use href="#i-stop"/></svg>Stop</button>
+      {% else %}
+        <a class="btn" href="{{ url_for('setup') }}">Fix setup first</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="bar" role="progressbar" aria-label="Sending progress"
+       aria-valuemin="0" aria-valuemax="{{ counts.total }}" aria-valuenow="{{ counts.sent }}">
+    <i style="width:{{ (100 * counts.sent / counts.total)|round|int if counts.total else 0 }}%"></i></div>
+  <div class="sending-live" id="sendlive">
+    <span>{% if counts.total %}{{ counts.sent }} of {{ counts.total }} sent{% else %}Nobody queued yet.{% endif %}
+    {%- if counts.failed %} &middot; {{ counts.failed }} failed{% endif %}</span>
+  </div>
+
+  {% if editable %}
+  {# A batch size is what makes a warm-up possible. Press it for 25 today and
+     100 tomorrow and it takes the NEXT 100, newest buyers first, because
+     anyone already queued is skipped. A domain with almost no sending history
+     that opens at full volume gets throttled, and who you reach first is what
+     teaches Gmail whether your mail is wanted. #}
+  <form method="post" action="{{ url_for('campaign_queue', cid=camp['id']) }}"
+        class="queuebar">
+    <label for="batch">Add the next</label>
+    <input id="batch" name="batch" type="number" min="1" max="2000" value="25"
+           inputmode="numeric" aria-label="How many people to add">
+    <span>newest buyers to the queue</span>
+    <button class="btn" type="submit">Add</button>
+    <span class="hint">{{ reach }} in this audience &middot; {{ counts.total }} queued so far</span>
+  </form>
+  {% endif %}
+</div>
+
+{% if recent %}
+<div class="tbl-wrap" style="margin-top:18px">
+<table>
+  <thead><tr><th>Address</th><th>Sent</th><th>Opened</th><th>Clicked</th><th>Error</th></tr></thead>
+  <tbody>
+  {% for s in recent %}
+    <tr>
+      <td class="mono">{{ s['to_email'] }}</td>
+      <td class="mono">{{ s['sent_at'][5:16].replace('T',' ') if s['sent_at'] else '-' }}</td>
+      <td class="mono">{{ s['opened'][5:16].replace('T',' ') if s['opened'] else '-' }}</td>
+      <td class="mono">{{ s['clicked'][5:16].replace('T',' ') if s['clicked'] else '-' }}</td>
+      <td class="hint">{{ s['error'] }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% endif %}
+{% endif %}
+{% endblock %}

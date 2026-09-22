@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% set active = 'lists' %}
+{% block title %}Lists &middot; Email Marketing{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Lists</h1>
+    <div class="lede">Who a campaign can be sent to. Open one to see the people in it.</div>
+  </div>
+  <div class="actions">
+    <form method="post" action="{{ url_for('build_lists') }}"
+          data-confirm-title="Number everyone into sending lists"
+          data-confirm="Cuts everyone who may be mailed into numbered lists of 275, newest buyers first. People who already have a number keep it, so newcomers are added to the end rather than reshuffling lists you have already sent to."
+          data-confirm-ok="Create the lists">
+      <input type="hidden" name="size" value="275">
+      <button class="btn primary" type="submit">Create numbered lists</button>
+    </form>
+    <a class="btn" href="{{ url_for('subscribers') }}">All subscribers</a>
+  </div>
+</div>
+
+{% if unnumbered %}
+<div class="note"><svg><use href="#i-info"/></svg>
+  <span><b>{{ unnumbered }}</b> people who may be mailed do not have a list
+  number yet. Press <i>Create numbered lists</i> to add them to the end.</span></div>
+{% endif %}
+
+<div class="tbl-wrap">
+<table>
+  <thead><tr>
+    <th>List</th><th>What it is</th><th class="num">People</th>
+    <th>Already sent to it</th><th></th>
+  </tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td><b>{{ r.name }}</b>
+        {%- if r.saved %} <span class="pill draft"><span class="d"></span>saved</span>{% endif %}</td>
+      <td class="hint">{{ r.note or 'A filter you saved yourself.' }}</td>
+      <td class="num mono">{{ '{:,}'.format(r.count).replace(',', '.') }}</td>
+      {# Answers "what has this list already received", which the campaign
+         records could always have told you and no screen ever did. #}
+      <td>
+        {%- if r.campaigns %}
+          {%- for c in r.campaigns[:3] %}
+          <div><a href="{{ url_for('campaign', cid=c['id']) }}">{{ c['name'] }}</a>
+            <span class="hint">{{ c['sent'] }} sent{% if c['started'] %},
+              {{ c['started'][:10] }}{% endif %}</span></div>
+          {%- endfor %}
+          {%- if r.campaigns|length > 3 %}
+          <div class="hint">and {{ r.campaigns|length - 3 }} more</div>
+          {%- endif %}
+        {%- else %}
+          <span class="hint">Nothing yet</span>
+        {%- endif %}
+      </td>
+      <td class="rowacts">
+        <a class="btn sm primary" href="{{ url_for('campaign_new', audience=r.key) }}">Send to this list</a>
+        <a class="btn sm" href="{{ url_for('subscribers', audience=r.key) }}">See who is in it</a>
+        {%- if r.saved %}
+        <form method="post" action="{{ url_for('delete_list', sid=r.id) }}"
+              data-confirm-title="Delete this list"
+              data-confirm="Removes the list only. Nobody is unsubscribed and no subscriber is deleted."
+              data-confirm-ok="Delete the list">
+          <button class="btn sm" type="submit">Delete</button>
+        </form>
+        {%- endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<div class="note" style="margin-top:18px"><svg><use href="#i-info"/></svg>
+  <span><b>To make a new list:</b> open <a href="{{ url_for('subscribers') }}">Subscribers</a>,
+  narrow it with the filters in the column headings, then name it and press
+  <i>Save as list</i>. A list stores the filter rather than the people, so anyone
+  who unsubscribes leaves it on their own.</span></div>
+{% endblock %}

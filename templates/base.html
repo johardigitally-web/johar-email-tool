@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light dark">
+<title>{% block title %}Email Marketing{% endblock %}</title>
+{# Versioned like the stylesheet: a tab icon is one of the things browsers hold
+   on to longest, and a stale one is how a rebranded tool keeps looking old. #}
+<link rel="icon" href="{{ url_for('static', filename='favicon.ico', v=sv) }}" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32"
+      href="{{ url_for('static', filename='favicon-32.png', v=sv) }}">
+<link rel="icon" type="image/png" sizes="16x16"
+      href="{{ url_for('static', filename='favicon-16.png', v=sv) }}">
+<link rel="apple-touch-icon"
+      href="{{ url_for('static', filename='icon-180.png', v=sv) }}">
+{# Inter, with the weights actually used and nothing else. It has the optical
+   corrections that keep 12-14px UI text legible, which a system stack does not.
+   Preconnect first so the font request does not wait on DNS + TLS. If it fails
+   to load the stack in style.css falls back cleanly and nothing shifts much. #}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600&display=swap">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=sv) }}">
+</head>
+<body>
+{% include '_icons.html' %}
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  {# The shop's own logo, not a drawn placeholder, with its name set small
+     beside the tool's name. Which of those two is the heading depends on
+     whether you are looking for the company or for the tool. Inside the tool,
+     the tool wins. Drop your own logo.png into static/ to replace it. #}
+  <a class="brand" href="{{ url_for('index') }}">
+    <img class="brand-logo" src="{{ url_for('static', filename='logo.png', v=sv) }}"
+         alt="{{ shop_name }}" width="106" height="25">
+    <span class="brand-text">
+      <b>Email Marketing</b>
+      <small>{{ shop_name }}</small>
+    </span>
+  </a>
+  <nav aria-label="Main">
+    <a href="{{ url_for('index') }}" class="{% if active == 'campaigns' %}on{% endif %}">Campaigns</a>
+    <a href="{{ url_for('subscribers') }}" class="{% if active == 'subs' %}on{% endif %}">Subscribers</a>
+    <a href="{{ url_for('lists') }}" class="{% if active == 'lists' %}on{% endif %}">Lists</a>
+    <a href="{{ url_for('flows_screen') }}" class="{% if active == 'flows' %}on{% endif %}">Flows</a>
+    <a href="{{ url_for('results') }}" class="{% if active == 'results' %}on{% endif %}">Results</a>
+    <a href="{{ url_for('templates_screen') }}" class="{% if active == 'templates' %}on{% endif %}">Templates</a>
+    <a href="{{ url_for('setup') }}" class="{% if active == 'setup' %}on{% endif %}">
+      Setup{% if blockers %} <span class="badge" title="{{ blockers }} things still to do">{{ blockers }}</span>{% endif %}</a>
+    {% if not unprotected %}<a href="{{ url_for('logout') }}">Sign out</a>{% endif %}
+  </nav>
+</header>
+
+{% if locked_to %}
+<div class="lockbar" role="status">
+  <svg aria-hidden="true"><use href="#i-lock"/></svg>
+  <span>Sending is locked to <b>{{ locked_to|join(', ') }}</b>. No customer can receive anything.</span>
+  <a href="{{ url_for('setup') }}">Change</a>
+</div>
+{% endif %}
+
+<main class="wrap {% block wrapclass %}{% endblock %}" id="main">
+  {% block content %}{% endblock %}
+</main>
+
+{% if msg %}<div id="flash" hidden>{{ msg }}</div>{% endif %}
+<div id="toasts" aria-live="polite"></div>
+<script src="{{ url_for('static', filename='app.js', v=sv) }}"></script>
+</body>
+</html>

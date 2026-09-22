@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+{% set active = 'flows' %}
+{% block title %}Email {{ pos + 1 }} &middot; {{ f.name }}{% endblock %}
+{% block content %}
+<div class="crumbs"><a href="{{ url_for('flows_screen') }}">Flows</a>
+  <span class="hint">/</span> <a href="{{ url_for('flow_detail', key=f.key) }}">{{ f.name }}</a>
+  <span class="hint">/</span> Email {{ pos + 1 }}</div>
+
+<div class="head">
+  <div>
+    <h1>Email {{ pos + 1 }} of {{ n }}</h1>
+    <div class="lede">The words on the left, the email itself on the right.
+      Nothing here sends anything: saving changes what the next send will use.</div>
+  </div>
+  <div class="actions">
+    {% if n > 1 %}
+    <form method="post" action="{{ url_for('flow_step_delete', key=f.key, pos=pos) }}"
+          data-confirm-title="Delete this email"
+          data-confirm="It is removed from the sequence. Anybody partway through moves on to whatever comes next."
+          data-confirm-ok="Delete it">
+      <button class="btn danger" type="submit">Delete</button>
+    </form>
+    {% endif %}
+    <a class="btn" href="{{ url_for('flow_detail', key=f.key) }}">Back to the flow</a>
+  </div>
+</div>
+
+{% if msg %}<div class="note"><svg><use href="#i-info"/></svg><span>{{ msg }}</span></div>{% endif %}
+
+<div class="split">
+  <div>
+    <form class="card" id="stepform" method="post">
+      <label for="f-hours"><span class="lbl">Wait before this email</span>
+        <span class="hint">Hours
+          {%- if pos == 0 %} after the trigger{% else %} after email {{ pos }}{% endif %}.
+          Klaviyo states its waits the same way.</span></label>
+      <input id="f-hours" type="number" name="hours" step="0.5" min="0" max="720"
+             value="{{ step['hours']|round(1) }}">
+
+      <label for="f-subject" style="margin-top:14px"><span class="lbl">Subject</span></label>
+      <input id="f-subject" type="text" name="subject" maxlength="200" required
+             value="{{ step['subject'] }}">
+
+      <label for="f-pre" style="margin-top:14px"><span class="lbl">Preheader</span>
+        <span class="hint">The grey line next to the subject in the inbox.</span></label>
+      <input id="f-pre" type="text" name="preheader" maxlength="200"
+             value="{{ step['preheader'] }}">
+
+      <label for="f-hook" style="margin-top:14px"><span class="lbl">Cream strip</span>
+        <span class="hint">The promise under the heading. Empty removes it.</span></label>
+      <input id="f-hook" type="text" name="hook" maxlength="200"
+             value="{{ step['hook'] }}">
+
+      <div class="fieldset" style="margin-top:18px">
+        <div class="fieldset-head">
+          <span class="lbl">Orange box</span>
+          <span class="hint">A discount code, as the third checkout email has.
+            An empty code means no box at all.</span>
+        </div>
+        <label for="f-olabel" style="margin-top:14px"><span class="lbl">Small line above</span></label>
+        <input id="f-olabel" type="text" name="offer_label" maxlength="60"
+               value="{{ step['offer_label'] }}" placeholder="Uw persoonlijke code">
+        <label for="f-ocode" style="margin-top:14px"><span class="lbl">Code</span></label>
+        <input id="f-ocode" type="text" name="offer_code" maxlength="40"
+               value="{{ step['offer_code'] }}" placeholder="ELA10">
+        <label for="f-onote" style="margin-top:14px"><span class="lbl">Line underneath</span></label>
+        <input id="f-onote" type="text" name="offer_note" maxlength="80"
+               value="{{ step['offer_note'] }}">
+      </div>
+
+      <div class="fieldset" style="margin-top:18px">
+        <div class="fieldset-head">
+          <span class="lbl">Message</span>
+          <span class="hint">Write in Dutch, the recipients are customers.</span>
+        </div>
+
+        <label for="f-kop" style="margin-top:14px"><span class="lbl">Heading</span></label>
+        <input id="f-kop" type="text" name="heading" maxlength="200"
+               value="{{ step['heading'] }}">
+
+        <label for="f-sub" style="margin-top:14px"><span class="lbl">Line under the heading</span>
+          <span class="hint">Write %(naam)s where their first name should go.</span></label>
+        <input id="f-sub" type="text" name="subline" maxlength="300"
+               value="{{ step['subline'] }}">
+
+        <label for="f-body" style="margin-top:14px"><span class="lbl">Text under the basket</span>
+          <span class="hint">Appears below what they left behind, which is
+            where the Klaviyo emails put it. An empty line starts a new
+            paragraph.</span></label>
+        <textarea id="f-body" name="body" rows="9">{{ step['body'] }}</textarea>
+
+        <label for="f-knop" style="margin-top:14px"><span class="lbl">Button</span>
+          <span class="hint">Where it goes is decided per person: back to their
+            basket, or to the product they were looking at.</span></label>
+        <input id="f-knop" type="text" name="button" maxlength="60"
+               value="{{ step['button'] }}" placeholder="Bestelling afronden">
+      </div>
+
+      <div class="savebar" style="margin-top:18px">
+        <button class="btn primary" type="submit">Save</button>
+        <span class="hint">Saving does not resend anything.</span>
+      </div>
+    </form>
+  </div>
+
+  <div>
+    <div class="preview-shell">
+      <div class="preview-bar">
+        <div class="device" id="pv-lang">
+          <button type="button" data-lang="nl" class="on">Dutch</button>
+          <button type="button" data-lang="en">English</button>
+        </div>
+        <span class="hint">As saved. Press Save to see an edit here.</span>
+      </div>
+      <iframe class="preview" id="pv-frame" title="Preview of this email"
+              data-src="{{ url_for('flows_preview', key=f.key, step=pos + 1) }}"
+              src="{{ url_for('flows_preview', key=f.key, step=pos + 1) }}"></iframe>
+    </div>
+  </div>
+</div>
+{% endblock %}

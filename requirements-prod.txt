@@ -1,0 +1,6 @@
+# What the server needs on top of requirements.txt.
+Flask>=3.0
+gunicorn>=23.0
+# Read-only CRM lookups for the spend column. Pure Python: no build step and
+# no compiled wheel to go missing on a Python upgrade.
+pg8000>=1.31

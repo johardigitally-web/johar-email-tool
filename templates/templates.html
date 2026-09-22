@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% set active = 'templates' %}
+{% block title %}Templates &middot; Email Marketing{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Templates</h1>
+    <div class="lede">Your own designs, made from the same blocks every email
+      is built from. Start from one that exists, change what you want, save it
+      under a name, and it appears when you make a new campaign.</div>
+  </div>
+</div>
+
+{% if msg %}<div class="note"><svg><use href="#i-info"/></svg><span>{{ msg }}</span></div>{% endif %}
+
+{# Starting from something is the normal case. A template is nearly always
+   "that one, but with a quote and without the picture", and a blank page is
+   where people stop. #}
+<form class="card newflow" method="post" action="{{ url_for('template_new') }}">
+  <h3>New template</h3>
+  <div class="nf-grid">
+    <label>Name
+      <input name="name" maxlength="80" placeholder="Herfst nieuwsbrief, Showroom weekend, ...">
+    </label>
+    <label>Start from
+      <select name="start">
+        <option value="">Nothing: header, text, button</option>
+        <optgroup label="Built in">
+          {% for s in built_in %}<option value="{{ s.key }}">{{ s.name }}</option>{% endfor %}
+        </optgroup>
+        {% if own %}
+        <optgroup label="Your own">
+          {% for t in own %}<option value="t:{{ t['id'] }}">{{ t['name'] }}</option>{% endfor %}
+        </optgroup>
+        {% endif %}
+      </select>
+    </label>
+  </div>
+  <div class="actions">
+    <button class="btn primary" type="submit"><svg aria-hidden="true"><use href="#i-plus"/></svg>Make it</button>
+  </div>
+</form>
+
+<h3 class="sec">Your templates</h3>
+{% if own %}
+<div class="flowgrid">
+  {% for t in own %}
+  <a class="flowcard" href="{{ url_for('template_edit', tid=t['id']) }}">
+    <div class="fc-top">
+      <h3>{{ t['name'] }}</h3>
+      <span class="pill draft"><span class="d"></span>yours</span>
+    </div>
+    <div class="fc-trigger">{{ t['subject'] or 'No subject yet' }}</div>
+    <div class="fc-why">{{ t['blurb'] or 'Eigen sjabloon' }}
+      <span class="hint">&middot; edited {{ t['updated'][:10] }}</span></div>
+    <div class="fc-go">Open
+      <svg aria-hidden="true"><use href="#i-next"/></svg></div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card"><div class="empty" style="padding:28px">
+  <svg aria-hidden="true"><use href="#i-inbox"/></svg>
+  No templates of your own yet.<br>
+  <span class="hint">Pick one above to start from. Nothing you do here sends anything.</span>
+</div></div>
+{% endif %}
+
+<h3 class="sec">Built in</h3>
+<div class="flowgrid">
+  {% for s in built_in %}
+  <div class="flowcard off">
+    <div class="fc-top">
+      <h3>{{ s.name }}</h3>
+      <span class="pill sent"><span class="d"></span>built in</span>
+    </div>
+    <div class="fc-why">{{ s.blurb }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<details class="explain">
+  <summary>How this works</summary>
+  <div class="explain-body">
+    <p><b>Every email is a stack of blocks.</b> A header, a strip, text, products,
+    a button, and so on. A template is the order you put them in plus the words
+    you type as a starting point. The logo and the footer are always there and
+    cannot be removed, because the footer carries the lines the law requires.</p>
+    <p><b>Nothing here changes an email you already made.</b> A campaign bakes
+    its design in when you save it. Editing or deleting a template only changes
+    what the next campaign starts from.</p>
+    <p><b>Flows keep their own design.</b> Templates are for campaigns.</p>
+  </div>
+</details>
+{% endblock %}

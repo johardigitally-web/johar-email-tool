@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% set active = 'flows' %}
+{% block title %}Flows &middot; Email Marketing{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Flows</h1>
+    <div class="lede">Emails that go out on their own when a customer does
+      something, rather than when you press send. Open one to see its
+      sequence.</div>
+  </div>
+  <div class="actions">
+    <button class="btn primary" type="button" data-panel="newflow">
+      <svg aria-hidden="true"><use href="#i-plus"/></svg>New flow</button>
+  </div>
+</div>
+
+{% if msg %}<div class="note"><svg><use href="#i-info"/></svg><span>{{ msg }}</span></div>{% endif %}
+
+{% if blocked %}
+<div class="note warn"><svg aria-hidden="true"><use href="#i-warn"/></svg>
+  <span><b>Nothing will send from any flow.</b> {{ blocked }}</span></div>
+{% endif %}
+
+{# Creating one is a small form rather than its own page: a flow is a name, a
+   trigger and then the actual work, which is writing the emails. #}
+<form class="card newflow" id="newflow" method="post"
+      action="{{ url_for('flow_new') }}" hidden>
+  <h3>New flow</h3>
+  <div class="nf-grid">
+    <label>Name
+      <input name="name" required maxlength="80" placeholder="Win back, welcome, ...">
+    </label>
+    <label>Starts when
+      <select name="trigger" id="nf-trigger">
+        {% for key, t in triggers.items() %}
+          <option value="{{ key }}">{{ t.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="nf-days" hidden>Quiet for how many days
+      <input name="days" type="number" min="1" max="3650" value="365">
+    </label>
+  </div>
+  <div class="nf-hint hint" id="nf-hint"></div>
+  <div class="actions">
+    <button class="btn" type="button" data-panel="newflow">Cancel</button>
+    <button class="btn primary" type="submit">Create as draft</button>
+  </div>
+  {# The trigger explanations, for the line under the dropdown. #}
+  <script type="application/json" id="nf-hints">
+    {{ triggers|tojson }}
+  </script>
+</form>
+
+<div class="flowgrid">
+  {% for f in catalog %}
+  <a class="flowcard{% if f.status != 'live' %} off{% endif %}"
+     href="{{ url_for('flow_detail', key=f.key) }}">
+    <div class="fc-top">
+      <h3>{{ f.name }}</h3>
+      {% if f.status == 'live' and blocked %}<span class="pill paused"><span class="d"></span>live, but blocked</span>
+      {%- elif f.status == 'live' %}<span class="pill sending"><span class="d"></span>live</span>
+      {%- elif f.status == 'paused' %}<span class="pill paused"><span class="d"></span>paused</span>
+      {%- else %}<span class="pill draft"><span class="d"></span>draft</span>{% endif %}
+    </div>
+    <div class="fc-trigger">Starts when {{ f.trigger_name|lower }}.</div>
+    <div class="fc-stats">
+      <div class="fc-stat"><b>{{ f.emails }}</b><span>emails</span></div>
+      <div class="fc-stat"><b>{{ f.waiting }}</b><span>in it now</span></div>
+      <div class="fc-stat"><b>{{ f.sent }}</b><span>sent</span></div>
+      <div class="fc-stat"><b>{{ f.orders }}</b><span>orders</span></div>
+    </div>
+    <div class="fc-go">Open the sequence
+      <svg aria-hidden="true"><use href="#i-next"/></svg></div>
+  </a>
+  {% endfor %}
+</div>
+
+<div class="note" style="margin-top:20px"><svg><use href="#i-info"/></svg>
+  <span><b>A draft cannot send.</b> A new flow starts as a draft, and every
+  email in it needs a subject before it will go live. Live flows still pass
+  through the main sending switch, the allowlist and the daily cap, so setting
+  one live while sending is off changes nothing at all.</span></div>
+{% endblock %}

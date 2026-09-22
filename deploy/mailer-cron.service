@@ -1,0 +1,30 @@
+[Unit]
+Description=Mailer: read bounces, look for triggers, send what is due
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=mailer
+Group=mailer
+WorkingDirectory=/opt/mailer
+EnvironmentFile=/etc/mailer.env
+ExecStart=/opt/mailer/.venv/bin/python /opt/mailer/cron.py
+# It talks to the webshop and to a mail server. Neither is allowed to hang a run
+# into the next one.
+TimeoutStartSec=600
+Nice=10
+
+# The same hardening as the web service. It reads one database and one mailbox,
+# and the mailbox is inside the data directory (see deploy/mailserver.sh), so
+# one writable path covers both.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/mailer
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=multi-user.target

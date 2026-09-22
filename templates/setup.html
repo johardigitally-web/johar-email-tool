@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% set active = 'setup' %}
+{% block title %}Setup &middot; Email Marketing{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Setup</h1>
+    <div class="lede">What still stands between here and sending a real newsletter.</div>
+  </div>
+</div>
+
+{% if blockers %}
+<div class="note warn"><svg aria-hidden="true"><use href="#i-warn"/></svg>
+  <span><b>{{ blockers }}</b> thing{{ 's' if blockers != 1 }} to sort out before a campaign can go out.
+  Everything else (writing, importing, previewing) works right now.</span></div>
+{% else %}
+<div class="note ok"><svg aria-hidden="true"><use href="#i-ok"/></svg>
+  <span>Everything needed for sending is in place.</span></div>
+{% endif %}
+
+<div class="tbl-wrap">
+<table>
+  <caption class="visually-hidden">Setup checklist</caption>
+  <thead><tr><th style="width:34px"></th><th>Item</th><th>Why it matters</th><th>What to set</th></tr></thead>
+  <tbody>
+  {% for c in checks %}
+    <tr>
+      <td>{% if c.ok %}<span class="tick ok" title="Done"><svg aria-hidden="true"><use href="#i-ok"/></svg></span>
+          {% else %}<span class="tick {{ 'todo' if c.must else 'opt' }}" title="{{ 'Required' if c.must else 'Optional' }}">
+          <svg aria-hidden="true"><use href="#i-warn"/></svg></span>{% endif %}</td>
+      <td><b>{{ c.name }}</b>{% if not c.must %} <span class="pill">optional</span>{% endif %}</td>
+      <td class="hint">{{ c.why }}{% if c.note %}<br><i>{{ c.note }}</i>{% endif %}</td>
+      <td><code>{{ c.fix }}</code></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<div class="card" style="margin-top:18px">
+  <h3>Where these live</h3>
+  <p class="hint">All of it is one file: <code>mailer/.env</code>. Edit it, then restart with
+     <code>run.bat</code>. Nothing here is stored in the database, so a setting can never be
+     changed by accident from inside the tool.</p>
+</div>
+{% endblock %}

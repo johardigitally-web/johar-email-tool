@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% set active = 'campaigns' %}
+{% block title %}Campaigns &middot; Email Marketing{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Campaigns</h1>
+    <div class="lede">Write a message and send it to the people who opted in.</div>
+  </div>
+  <div class="actions">
+    <a class="btn primary" href="{{ url_for('campaign_new') }}"><svg aria-hidden="true"><use href="#i-plus"/></svg>New campaign</a>
+  </div>
+</div>
+
+{% if not campaigns and not stats.total %}
+{# First run. An empty table with no next step is where people close the tab. #}
+<div class="card" style="text-align:center;padding:34px 22px">
+  <h2 style="margin-bottom:6px">Two things to do first</h2>
+  <p class="hint" style="max-width:460px;margin:0 auto 20px">
+    You have no subscribers yet and nothing written. Both take about a minute.</p>
+  <div class="starters" style="max-width:640px;margin:0 auto;text-align:left">
+    <a class="starter" href="{{ url_for('subscribers') }}">
+      <div class="starter-art" aria-hidden="true"><span class="l w75"></span><span class="l w60"></span><span class="l w90"></span></div>
+      <b>1. Bring in your subscribers</b>
+      <span class="hint">Import from the webshop, or paste a list.</span></a>
+    <a class="starter" href="{{ url_for('campaign_new') }}">
+      <div class="starter-art" aria-hidden="true"><span class="l w60"></span><span class="l img"></span><span class="l btn-ish"></span></div>
+      <b>2. Write your first campaign</b>
+      <span class="hint">Start from a layout that already works.</span></a>
+  </div>
+</div>
+{% else %}
+
+<div class="cards">
+  <div class="card kc hi"><div class="kl">Mailable</div><div class="kv">{{ stats.mailable }}</div><div class="km">of {{ stats.total }} addresses</div></div>
+  <div class="card kc"><div class="kl">Unsubscribed</div><div class="kv">{{ stats.unsubscribed }}</div><div class="km">never mail again</div></div>
+  <div class="card kc"><div class="kl">No consent</div><div class="kv">{{ stats.never }}</div><div class="km">known, never opted in</div></div>
+  <div class="card kc"><div class="kl">Sent today</div><div class="kv">{{ stats.sent_today }}</div><div class="km">daily cap {{ cfg.DAILY_CAP }}</div></div>
+</div>
+
+<div class="tbl-wrap">
+<table>
+  <thead><tr>
+    <th>Campaign</th><th>Subject</th><th>Sent to</th><th>Status</th>
+    <th class="num">Queued</th><th class="num">Sent</th><th class="num">Opened</th><th>Created</th>
+  </tr></thead>
+  <tbody>
+  {% for c in campaigns %}
+    <tr>
+      <td><a href="{{ url_for('campaign', cid=c['id']) }}"><b>{{ c['name'] }}</b></a></td>
+      <td>{{ c['subject'] or '-' }}</td>
+      {# Which list it went to. The database has recorded this all along and
+         nothing showed it, so there was no way to answer "what did list 3
+         already receive". #}
+      <td><a href="{{ url_for('subscribers', audience=c['audience']) }}"
+             title="See who is in this list">{{ names.get(c['audience'], c['audience']) }}</a></td>
+      <td><span class="pill {{ c['status'] }}"><span class="d"></span>{{ c['status'] }}</span></td>
+      <td class="num">{{ c['n_total'] }}</td>
+      <td class="num">{{ c['n_sent'] }}</td>
+      <td class="num">{{ c['n_open'] }}{% if c['n_sent'] %} <span class="hint">{{ (100 * c['n_open'] / c['n_sent'])|round|int }}%</span>{% endif %}</td>
+      <td class="mono">{{ c['created'][:10] }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="8" class="empty">
+      <svg aria-hidden="true"><use href="#i-inbox"/></svg>
+      No campaigns yet.<br>
+      <a href="{{ url_for('campaign_new') }}">Write your first one</a>
+    </td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% endblock %}

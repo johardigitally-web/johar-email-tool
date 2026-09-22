@@ -1,0 +1,33 @@
+{# Public. Standalone on purpose: no navigation, no login, nothing from the tool
+   itself. Somebody opening this from their inbox should see one sentence and a
+   way to reach a human, not our admin interface. #}
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Afgemeld</title>
+<style>
+ body{margin:0;background:#f6f6f4;font:16px/1.6 -apple-system,Segoe UI,Arial,sans-serif;color:#222}
+ .box{max-width:520px;margin:12vh auto;background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:32px 28px}
+ h1{font-size:22px;margin:0 0 12px}
+ .mail{font-family:monospace;background:#f2f2f0;padding:2px 6px;border-radius:4px}
+ .addr{margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:13px;color:#777;white-space:pre-line}
+ a{color:#8a6d3b}
+</style>
+</head>
+<body><div class="box">
+{% if already %}
+  <h1>U was al afgemeld</h1>
+  <p><span class="mail">{{ email }}</span> stond al niet meer op onze lijst. U hoeft verder niets te doen.</p>
+{% else %}
+  <h1>U bent afgemeld</h1>
+  <p>We sturen geen nieuwsbrieven meer naar <span class="mail">{{ email }}</span>.</p>
+  <p>Bestelbevestigingen en berichten over een lopende order blijven wel komen. Dat is geen reclame en die heeft u nodig.</p>
+{% endif %}
+  {% if reply_to %}<p>Per ongeluk afgemeld, of een vraag? Mail ons op
+    <a href="mailto:{{ reply_to }}">{{ reply_to }}</a>.</p>{% endif %}
+  <div class="addr">{{ cfg.POSTAL_ADDRESS }}</div>
+</div></body>
+</html>
